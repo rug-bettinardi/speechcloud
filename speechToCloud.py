@@ -224,9 +224,13 @@ def plotWordCloud(text, stopwords=None, max_words=200, background_color="white",
         stopwords: list of str, words to remove from the computation
         background_color: str [default = "white"]
         colormap: matplotlib colormap [default = "viridis"]
-
+        kwargs: additional arguments of WordCloud [*]. examples of kwargs are: font_path, color_func, mask, ...
+                - To create a word cloud with a single color, use: ``color_func=lambda *args, **kwargs: "white"``
     Returns:
         fig handle
+
+
+    [*] http://amueller.github.io/word_cloud/generated/wordcloud.WordCloud.html#wordcloud.WordCloud
 
     """
 
@@ -285,9 +289,6 @@ class SpeechCloud:
         self.text = None
         self._tempDir = r"P:\WORK\PYTHONPATH\rug\projects\speechcloud\temp"  # TODO: automatically in "speechcloud" dir
 
-        if not os.path.exists(self._tempDir):
-            os.mkdir(self._tempDir)
-
     def transcribe(self, audio):
         """
 
@@ -335,7 +336,8 @@ class SpeechCloud:
             raise ValueError(f"{audio} is not a recognized argument format")
 
         # remove all temporary audio files:
-        shutil.rmtree(self._tempDir)
+        if os.path.exists(self._tempDir):
+            shutil.rmtree(self._tempDir)
 
     def plot(self, audio=None, stopwords=None, max_words=200, background_color="white", colormap="viridis", **kwargs):
 
@@ -402,6 +404,10 @@ class SpeechCloud:
 
         """
 
+        # create temp folder:
+        if not os.path.exists(self._tempDir):
+            os.mkdir(self._tempDir)
+
         if self.minutes:
             # create temporary child folder:
             segmentFolder = os.path.join(self._tempDir, "segment")
@@ -465,33 +471,18 @@ if __name__ == "__main__":
     for audio in inputLst:
         print(audio)
 
-        # path, file = os.path.split(audio)
-        # fmt = file.split(".")[1]
-        #
-        # audiofile = AudioSegment.from_file(audio, format=fmt)
-        # print(f"{file}: duration = {round(audiofile.duration_seconds / 60, 1)} minutes, dBFS = {audiofile.dBFS}")
-
         # sc = SpeechCloud(language='it')
         sc = SpeechCloud(language='it', minutes=[1, 3])
+
+        sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400, color_func=lambda *args, **kwargs: "white", background_color="red")
+        sc.plot(audio=None, stopwords=STOPWORDS, max_words=400, color_func=lambda *args, **kwargs: "white", background_color="black")
+        sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400, color_func=lambda *args, **kwargs: "white", background_color="green")
         sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400, colormap="inferno")
 
         text = sc.getTranscription()
         print(text)
 
-        plt.close()
+        plt.close("all")
 
     print("FINISHED")
 
-    ##
-
-    # sc = SpeechCloud(language='it', dBChangeVolume=25)
-    # sc = SpeechCloud(language='it', minutes=[1, 2], dBChangeVolume=25)
-    # # sc.plot(stopwords=STOPWORDS, max_words=400, colormap="inferno", random_state=2)
-    # sc.plot(audio=AUDIO, stopwords=STOPWORDS, max_words=400, colormap="inferno")
-
-
-    # src = r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\esposizione.m4a"
-    # tgt = r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\esposizione_segment.wav"
-    # extractAndSaveWavSegment(srcFile=src, tgtWavFile=tgt, minutes=[1,2])
-
-    sc.plot(audio=audioGerry, stopwords=STOPWORDS, max_words=400, colormap="inferno")
