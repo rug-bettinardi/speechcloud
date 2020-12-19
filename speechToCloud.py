@@ -214,20 +214,24 @@ def getStopWords(text, language='it', stopList=None):
     return stopWords
 
 
-def plotWordCloud(text, stopwords=None, max_words=200, background_color="white", colormap="viridis", **kwargs):
+def plotWordCloud(text, language="it", stopwords=None, max_words=200,
+                  background_color="white", colormap="viridis",
+                  figsize=(10.0, 10.0), **kwargs):
     """
     Plot Wordcloud
 
     Args:
         text: text to convert to wordcloud
+        language: (str) default is 'it'
         max_words: max num of words to plot
         stopwords: list of str, words to remove from the computation
         background_color: str [default = "white"]
         colormap: matplotlib colormap [default = "viridis"]
+        figsize: (float, float) matplotlib figure figsize [default = (10.0, 10.0)]
         kwargs: additional arguments of WordCloud [*]. examples of kwargs are: font_path, color_func, mask, ...
                 - To create a word cloud with a single color, use: ``color_func=lambda *args, **kwargs: "white"``
     Returns:
-        fig handle
+        figure handle
 
 
     [*] http://amueller.github.io/word_cloud/generated/wordcloud.WordCloud.html#wordcloud.WordCloud
@@ -248,13 +252,15 @@ def plotWordCloud(text, stopwords=None, max_words=200, background_color="white",
     else:
         kwargs = defaultKwargs
 
-    if stopwords is not None and not isinstance(stopwords, set):
-        stopwords = set(stopwords)
+    STOPWORDS = set(getStopWords(text, language=language, stopList=stopwords))
 
-    fig = plt.figure(figsize=(19.0, 19.0))
+    # if stopwords is not None and not isinstance(stopwords, set):
+    #     stopwords = set(stopwords)
+
+    fig = plt.figure(figsize=(figsize[0], figsize[1]))
 
     try:
-        wordcloud = WordCloud(stopwords=stopwords,
+        wordcloud = WordCloud(stopwords=STOPWORDS,
                               max_words=max_words,
                               background_color=background_color,
                               colormap=colormap,
@@ -369,9 +375,10 @@ class SpeechCloud:
             self.transcribe(audio)
 
         if self.text:
-            STOPWORDS = getStopWords(self.text, language=self.language, stopList=stopwords)
-            figureHandle = plotWordCloud(text=self.text, stopwords=STOPWORDS, max_words=max_words,
-                                         background_color=background_color, colormap=colormap, **kwargs)
+            # STOPWORDS = getStopWords(self.text, language=self.language, stopList=stopwords)
+            figureHandle = plotWordCloud(text=self.text, language=self.language, stopwords=stopwords,
+                                         max_words=max_words, background_color=background_color, colormap=colormap,
+                                         **kwargs)
             return figureHandle
 
         else:
