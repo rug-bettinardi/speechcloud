@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 def extractAndSaveWavSegment(srcFile, tgtWavFile, minutes):
     """
     Extract & save only the desired segment from an audio file, in WAV format.
+    Also returns the pydub.AudioSegment of interest.
 
     Args:
         srcFile: (str) full path of source audio file
@@ -51,8 +52,8 @@ def extractAndSaveWavSegment(srcFile, tgtWavFile, minutes):
 
 def splitAndSaveAudio(srcFile, tgtDir, chunkDurationMin, tgtFormat="wav", dBChangeVolume=None):
     """
-    use pydub to split and save original mp3 file into chunks
-    of given duration.
+    use pydub to split and save original mp3 file into smaller
+    chunks of given duration.
 
     Args:
         srcFile: (str) full path to audio file
@@ -62,6 +63,7 @@ def splitAndSaveAudio(srcFile, tgtDir, chunkDurationMin, tgtFormat="wav", dBChan
         dBChangeVolume: (int) num of dB to scale up (+) or down (-) the audio volume [default = None, automatic]
 
     Returns:
+        None, it only saves the split chunks
 
     """
 
@@ -72,14 +74,12 @@ def splitAndSaveAudio(srcFile, tgtDir, chunkDurationMin, tgtFormat="wav", dBChan
     audiofile = effects.normalize(audiofile)
 
     if dBChangeVolume:
-        # audiofile = audiofile + dBChangeVolume
         audiofile = audiofile.apply_gain(dBChangeVolume)
     else:
         audioVolume = audiofile.dBFS
         volumeLowThr = -20
         if audioVolume < volumeLowThr:
             audiofile = audiofile.apply_gain(abs(audioVolume - volumeLowThr))
-            # audiofile = audiofile + abs(audioVolume - volumeLowThr)
 
     oneMinMs = 60 * 1000  # pydub works in milliseconds
     chunkDurationMs = chunkDurationMin * oneMinMs
@@ -107,14 +107,15 @@ def splitAndSaveAudio(srcFile, tgtDir, chunkDurationMin, tgtFormat="wav", dBChan
 
 def speechToText(wavFile, language="it-IT", engine="googleCloudAPI"):
     """
+    wrapper of speech_recognition module.
 
     Args:
         wavFile: (str) full path to wav audio file
-        language: (str)
+        language: (str) default is 'it-IT'
         engine: (str) either "googleCloudAPI" [default] or "google"
 
     Returns:
-        text
+        text: (str) obtained from speech-to-text
 
     """
 
@@ -151,14 +152,16 @@ def speechToText(wavFile, language="it-IT", engine="googleCloudAPI"):
 
 def textFromMultipleSpeechFiles(wavDir, language="it-IT", engine="googleCloudAPI"):
     """
+    Perform speech-to-text on multiple audio files and
+    concatenate all text outputs.
 
     Args:
         wavDir: (str) full path to directory containing wav audio files (each smaller then 10 MB!!!)
-        language:
+        language: (str) default is 'it-IT'
         engine: (str) either "googleCloudAPI" [default] or "google"
 
     Returns:
-        txt: (str)
+        txt: (str) concatenated output
 
     """
 
@@ -181,10 +184,10 @@ def textFromMultipleSpeechFiles(wavDir, language="it-IT", engine="googleCloudAPI
 
 def getStopWords(text, language='it', stopList=None):
     """
-    Remove every word that is neither a NOUN or a PROPN
+    Return list of words that are NOT a NOUN nor a PROPN
 
     Args:
-        text: (str)
+        text: (str) source text to clean
         language: (str) default is 'it'
         stopList: (list of str) of additional stop words
 
@@ -218,13 +221,13 @@ def plotWordCloud(text, language="it", stopwords=None, max_words=200,
                   background_color="white", colormap="viridis",
                   figsize=(10.0, 10.0), **kwargs):
     """
-    Plot Wordcloud
+    Wrapper of WordCloud [*]. Plot Wordcloud of a given text.
 
     Args:
         text: text to convert to wordcloud
         language: (str) default is 'it'
-        max_words: max num of words to plot
         stopwords: list of str, words to remove from the computation
+        max_words: max num of words to plot
         background_color: str [default = "white"]
         colormap: matplotlib colormap [default = "viridis"]
         figsize: (float, float) matplotlib figure figsize [default = (10.0, 10.0)]
@@ -232,7 +235,6 @@ def plotWordCloud(text, language="it", stopwords=None, max_words=200,
                 - To create a word cloud with a single color, use: ``color_func=lambda *args, **kwargs: "white"``
     Returns:
         figure handle
-
 
     [*] http://amueller.github.io/word_cloud/generated/wordcloud.WordCloud.html#wordcloud.WordCloud
 
@@ -245,6 +247,7 @@ def plotWordCloud(text, language="it", stopwords=None, max_words=200,
         "collocations": True,
     }
 
+    # update kwargs with default values if not provided:
     if kwargs:
         for k in defaultKwargs:
             if k not in kwargs.keys():
@@ -253,9 +256,6 @@ def plotWordCloud(text, language="it", stopwords=None, max_words=200,
         kwargs = defaultKwargs
 
     STOPWORDS = set(getStopWords(text, language=language, stopList=stopwords))
-
-    # if stopwords is not None and not isinstance(stopwords, set):
-    #     stopwords = set(stopwords)
 
     fig = plt.figure(figsize=(figsize[0], figsize[1]))
 
@@ -449,6 +449,9 @@ class SpeechCloud:
 
 
 if __name__ == "__main__":
+
+
+    # TEST
 
     audioGerry = [
         r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\esposizione.m4a",
