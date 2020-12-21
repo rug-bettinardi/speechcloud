@@ -11,15 +11,14 @@ import matplotlib.pyplot as plt
 logger = logging.getLogger(__name__)
 
 
-def extractAndSaveWavSegment(srcFile, tgtWavFile, minutes):
+def extractDesiredAudioSegment(srcFile, minutes, tgtWavFile=None):
     """
-    Extract & save only the desired segment from an audio file, in WAV format.
-    Also returns the pydub.AudioSegment of interest.
+    Extract only the desired segment from an audio file, and optionally save it in WAV format.
 
     Args:
         srcFile: (str) full path of source audio file
-        tgtWavFile: (str) full path of target WAV audio file
         minutes: (list of int) with [startMin, stopMin] of the segment of interest
+        tgtWavFile: (str) full path of target WAV audio file [default = None, does not save segment]
 
     Returns:
         chunk: pydub.AudioSegment of interest
@@ -45,12 +44,14 @@ def extractAndSaveWavSegment(srcFile, tgtWavFile, minutes):
         stopMs = durationMs
 
     chunk = audiofile[startMs:stopMs]
-    chunk.export(os.path.join(tgtWavFile), format="wav")
+
+    if tgtWavFile:
+        chunk.export(os.path.join(tgtWavFile), format="wav")
 
     return chunk
 
 
-def splitAndSaveAudio(srcFile, tgtDir, chunkDurationMin, tgtFormat="wav", dBChangeVolume=None):
+def splitIntoShorterAudioChunks(srcFile, tgtDir, chunkDurationMin, tgtFormat="wav", dBChangeVolume=None):
     """
     use pydub to split and save original mp3 file into smaller
     chunks of given duration.
@@ -102,7 +103,7 @@ def splitAndSaveAudio(srcFile, tgtDir, chunkDurationMin, tgtFormat="wav", dBChan
         counter += 1
 
     del audiofile
-    print(f"splitAndSaveAudio, {file}: DONE")
+    print(f"splitIntoShorterAudioChunks, {file}: DONE")
 
 
 def speechToText(wavFile, language="it-IT", engine="googleCloudAPI"):
@@ -297,14 +298,17 @@ class SpeechCloud:
 
     def transcribe(self, audio):
         """
+        perform speech-to-text of given audio argument (see Args) and update self.text class attribute 
+        with the resulting transcript (concatenating all audio files if audio is not a single file)
 
         Args:
             audio: filePath, list of filePaths, or path to directory containing all the audio files
 
-        Returns:
-            text: (str) speech-to-text transcript (concatenating all audio files if audio is not a single file)
-
         """
+
+        # create temp folder:
+        if not os.path.exists(self._tempDir):
+            os.mkdir(self._tempDir)
 
         if isinstance(audio, list):
 
@@ -346,14 +350,21 @@ class SpeechCloud:
             shutil.rmtree(self._tempDir)
 
     def plot(self, audio=None, stopwords=None, max_words=200, background_color="white", colormap="viridis", **kwargs):
-
         """
-             mask=None, scale=1,
-             figsize=(10, 10), collocation_threshold=30,
-             font_path=None, margin=2, ranks_only=None, prefer_horizontal=.9,
-             color_func=None, min_font_size=4, max_font_size=None, font_step=1, mode="RGB",
-             relative_scaling='auto', regexp=None, normalize_plurals=True, contour_width=0,
-             contour_color='black', repeat=False, include_numbers=False, min_word_length=0:
+        Wrapper of plotWordCloud.
+                
+        Args:
+            audio: filePath, list of filePaths, or path to directory containing all the audio files, [default = None]
+            stopwords: list of str, words to remove from the computation of WordCloud
+            max_words: max num of words to plot
+            background_color: str [default = "white"]
+            colormap: matplotlib colormap [default = "viridis"]
+            **kwargs: additional arguments of the WordCloud class [*] 
+
+        Returns:
+            figure handle
+            
+        [*] http://amueller.github.io/word_cloud/generated/wordcloud.WordCloud.html#wordcloud.WordCloud
 
         """
 
@@ -375,7 +386,7 @@ class SpeechCloud:
             self.transcribe(audio)
 
         if self.text:
-            # STOPWORDS = getStopWords(self.text, language=self.language, stopList=stopwords)
+            
             figureHandle = plotWordCloud(text=self.text, language=self.language, stopwords=stopwords,
                                          max_words=max_words, background_color=background_color, colormap=colormap,
                                          **kwargs)
@@ -385,10 +396,22 @@ class SpeechCloud:
             raise ValueError("No transcription already stored. Please provide 'audio' input argument")
 
     def getTranscription(self):
+        """
+        Returns:
+            text: (str) speech-to-text transcript (concatenating all audio files if audio is not a single file)
+
+        """
         warnLog = "No transcription stored. run SpeechCloud.transcribe(audio) first"
         return self.text if self.text else logger.warning(warnLog)
 
     def saveTranscription(self, tgtFile):
+        """
+        Save transcription into txt file
+        
+        Args:
+            tgtFile: (str) full path to .txt target file storing the speech-to-text transcription output
+
+        """
         warnLog = "No transcription stored. run SpeechCloud.transcribe(audio) first"
         if self.text:
 
@@ -411,10 +434,6 @@ class SpeechCloud:
 
         """
 
-        # create temp folder:
-        if not os.path.exists(self._tempDir):
-            os.mkdir(self._tempDir)
-
         if self.minutes:
             # create temporary child folder:
             segmentFolder = os.path.join(self._tempDir, "segment")
@@ -425,7 +444,7 @@ class SpeechCloud:
             _, file = os.path.split(srcFilePath)
             fileName = file.split(".")[0]
             tgtFilePath = os.path.join(segmentFolder, f"{fileName}_segment.wav")
-            _ = extractAndSaveWavSegment(srcFile=srcFilePath, tgtWavFile=tgtFilePath, minutes=self.minutes)
+            _ = extractDesiredAudioSegment(srcFile=srcFilePath, tgtWavFile=tgtFilePath, minutes=self.minutes)
             del _
 
         else:
@@ -437,11 +456,8 @@ class SpeechCloud:
         if not os.path.exists(chunksFolder):
             os.mkdir(chunksFolder)
 
-        splitAndSaveAudio(srcFile=tgtFilePath,
-                          tgtDir=chunksFolder,
-                          chunkDurationMin=1,
-                          tgtFormat="wav",
-                          dBChangeVolume=self.dBChangeVolume)
+        splitIntoShorterAudioChunks(srcFile=tgtFilePath, tgtDir=chunksFolder, chunkDurationMin=1,
+                                    tgtFormat="wav", dBChangeVolume=self.dBChangeVolume)
 
         text = textFromMultipleSpeechFiles(chunksFolder, language=self.language, engine=self.engine)
 
@@ -451,7 +467,12 @@ class SpeechCloud:
 if __name__ == "__main__":
 
 
-    # TEST
+    # TEST SECTION -------------------------------------------------------------------------------------------------
+
+    import sys
+
+    tgtDir = r"C:\Users\RuggeroBETTINARDI\Desktop\temp"
+    fileName = "createTempInTranscribe"
 
     audioGerry = [
         r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\esposizione.m4a",
@@ -460,12 +481,12 @@ if __name__ == "__main__":
     ]
     inputLst = [
         r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\esposizione.m4a",
-        r"P:\WORK\PYTHONPATH\rug\projects\autoradiolockdown\ruggero-dev\autolog\audio\puntate\mp3\segmentsMp3\puntata23\noSong_10.mp3",
-        r"P:\WORK\PYTHONPATH\rug\projects\autoradiolockdown\ruggero-dev\autolog\audio\puntate\mp3\segmentsMp3\puntata23\noSong_3.mp3",
-        r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\risposta1.m4a",
-        r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\risposta2.m4a",
-        r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio",  # directory
-        audioGerry,  # list
+        # r"P:\WORK\PYTHONPATH\rug\projects\autoradiolockdown\ruggero-dev\autolog\audio\puntate\mp3\segmentsMp3\puntata23\noSong_10.mp3",
+        # r"P:\WORK\PYTHONPATH\rug\projects\autoradiolockdown\ruggero-dev\autolog\audio\puntate\mp3\segmentsMp3\puntata23\noSong_3.mp3",
+        # r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\risposta1.m4a",
+        # r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\risposta2.m4a",
+        # r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio",  # directory
+        # audioGerry,  # list
     ]
 
     STOPWORDS = [
@@ -481,18 +502,26 @@ if __name__ == "__main__":
     for audio in inputLst:
         print(audio)
 
-        # sc = SpeechCloud(language='it')
-        sc = SpeechCloud(language='it', minutes=[1, 3])
+        sc = SpeechCloud(language='it')
+        # sc = SpeechCloud(language='it', minutes=[1, 3])
 
-        sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400, color_func=lambda *args, **kwargs: "white", background_color="red")
-        sc.plot(audio=None, stopwords=STOPWORDS, max_words=400, color_func=lambda *args, **kwargs: "white", background_color="black")
-        sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400, color_func=lambda *args, **kwargs: "white", background_color="green")
-        sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400, colormap="inferno")
+        fig = sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400)
+        # sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400, color_func=lambda *args, **kwargs: "white", background_color="red")
+        # sc.plot(audio=None, stopwords=STOPWORDS, max_words=400, color_func=lambda *args, **kwargs: "white", background_color="black")
+        # sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400, color_func=lambda *args, **kwargs: "white", background_color="green")
+        # sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400, colormap="inferno")
 
-        text = sc.getTranscription()
-        print(text)
+        # text = sc.getTranscription()
+        # print(text)
 
-        plt.close("all")
+        # plt.close("all")
+
+        fig.canvas.start_event_loop(sys.float_info.min)
+        plt.savefig(os.path.join(tgtDir, fileName + ".png"), bbox_inches="tight")
+        plt.close(fig)
+
+        print(sc.text)
 
     print("FINISHED")
 
+    # --------------------------------------------------------------------------------------------------------------
