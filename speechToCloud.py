@@ -121,6 +121,7 @@ def speechToText(wavFile, language="it-IT", engine="googleCloudAPI"):
     """
 
     recog = sr.Recognizer()
+    recog.operation_timeout = 90  # stop operations after X seconds of inactivity TODO
 
     with sr.AudioFile(wavFile) as source:
         recog.adjust_for_ambient_noise(source)
@@ -146,7 +147,7 @@ def speechToText(wavFile, language="it-IT", engine="googleCloudAPI"):
 
     except Exception as e:
         file = os.path.split(wavFile)[1]
-        print(f"speechToText on: {file} not possible, returning ''\n --> {e}")
+        print(f"speechToText on: {file} not possible, returning ''\n\t --> {e}")
         emptyString = ""
         return emptyString
 
@@ -199,6 +200,8 @@ def getStopWords(text, language='it', stopList=None):
 
     import spacy
 
+    stopList = [] if stopList is None else stopList
+
     if language == 'it':
         nlp = spacy.load('it_core_news_lg')
         stopWords = get_stop_words('it') + stopList
@@ -218,7 +221,7 @@ def getStopWords(text, language='it', stopList=None):
     return stopWords
 
 
-def plotWordCloud(text, language="it", stopwords=None, max_words=200,
+def plotWordCloud(text, language="it", stopwords=None, includewords=None, max_words=200,
                   background_color="white", colormap="viridis",
                   figsize=(10.0, 10.0), **kwargs):
     """
@@ -228,6 +231,7 @@ def plotWordCloud(text, language="it", stopwords=None, max_words=200,
         text: text to convert to wordcloud
         language: (str) default is 'it'
         stopwords: list of str, words to remove from the computation
+        includewords: list of str, words to include from the computation (if detected)
         max_words: max num of words to plot
         background_color: str [default = "white"]
         colormap: matplotlib colormap [default = "viridis"]
@@ -256,7 +260,13 @@ def plotWordCloud(text, language="it", stopwords=None, max_words=200,
     else:
         kwargs = defaultKwargs
 
-    STOPWORDS = set(getStopWords(text, language=language, stopList=stopwords))
+    stopwordsList = getStopWords(text, language=language, stopList=stopwords)
+
+    if includewords:
+        for word in includewords:
+            while word in stopwordsList: stopwordsList.remove(word)
+
+    STOPWORDS = set(stopwordsList)
 
     fig = plt.figure(figsize=(figsize[0], figsize[1]))
 
@@ -443,20 +453,22 @@ class SpeechCloud:
             # extract only desired audio segment:
             _, file = os.path.split(srcFilePath)
             fileName = file.split(".")[0]
-            tgtFilePath = os.path.join(segmentFolder, f"{fileName}_segment.wav")
-            _ = extractDesiredAudioSegment(srcFile=srcFilePath, tgtWavFile=tgtFilePath, minutes=self.minutes)
+            wavFilePath = os.path.join(segmentFolder, f"{fileName}_segment.wav")
+            _ = extractDesiredAudioSegment(srcFile=srcFilePath, tgtWavFile=wavFilePath, minutes=self.minutes)
             del _
 
         else:
             # use all audio file:
-            tgtFilePath = srcFilePath
+            wavFilePath = srcFilePath
 
         # create temporary child folder:
-        chunksFolder = os.path.join(self._tempDir, "chunks")
+        _, file = os.path.split(wavFilePath)
+        fileName = file.split(".")[0]
+        chunksFolder = os.path.join(self._tempDir, f"chunks_{fileName}")
         if not os.path.exists(chunksFolder):
             os.mkdir(chunksFolder)
 
-        splitIntoShorterAudioChunks(srcFile=tgtFilePath, tgtDir=chunksFolder, chunkDurationMin=1,
+        splitIntoShorterAudioChunks(srcFile=wavFilePath, tgtDir=chunksFolder, chunkDurationMin=1,
                                     tgtFormat="wav", dBChangeVolume=self.dBChangeVolume)
 
         text = textFromMultipleSpeechFiles(chunksFolder, language=self.language, engine=self.engine)
@@ -467,28 +479,8 @@ class SpeechCloud:
 if __name__ == "__main__":
 
 
-    # TEST SECTION -------------------------------------------------------------------------------------------------
-
-    import sys
-
-    tgtDir = r"C:\Users\RuggeroBETTINARDI\Desktop\temp"
-    fileName = "createTempInTranscribe"
-
-    audioGerry = [
-        r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\esposizione.m4a",
-        r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\risposta1.m4a",
-        r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\risposta2.m4a",
-    ]
-    inputLst = [
-        r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\esposizione.m4a",
-        # r"P:\WORK\PYTHONPATH\rug\projects\autoradiolockdown\ruggero-dev\autolog\audio\puntate\mp3\segmentsMp3\puntata23\noSong_10.mp3",
-        # r"P:\WORK\PYTHONPATH\rug\projects\autoradiolockdown\ruggero-dev\autolog\audio\puntate\mp3\segmentsMp3\puntata23\noSong_3.mp3",
-        # r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\risposta1.m4a",
-        # r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio\risposta2.m4a",
-        # r"P:\WORK\PYTHONPATH\rug\datasets\laureaGerry\audio",  # directory
-        # audioGerry,  # list
-    ]
-
+    # TEST ON RADIO LOCKDOWN PODCAST
+    podcastName = "puntata25"
     STOPWORDS = [
         "Luca", "Dani", "Daniele", "Chiara", "Marco", "Leo", "Micol", "Rugge", "Ali", "Pat", "Beppe", "Ste", "Claudio",
         "ragazzi", "ragazze", "raga", "l'altro", "l'altra", "volta", "l'ho", "l'hai", "l'ha", "volte", "l'hanno",
@@ -496,32 +488,39 @@ if __name__ == "__main__":
         "cos'erano", "roba", "ni", "realtà", "c'eravate", "c'eravamo", "tanto", "s'è", "glielo", "dall'altro",
         "dall'altra", "cos'altro", "l'è", "cosa", "cose", "tant'è", "meglio", "casi", "po'", "n'era", "gran", "Digli",
         "puntata", "tema", "proposito", "caso", "tipo", "tipa", "tipi", "esempi", "esempio", "Luino", "Ruggiero",
-        "anno", "modo", "modi", "Stefano", "Vicente", "Chat", "chat", "com", "posto", "posti", "c'è", "grazie"
+        "anno", "modo", "modi", "Stefano", "Vicente", "Chat", "chat", "com", "posto", "posti", "c'è", "grazie", "radio",
+        "Radio", "Grazie", "grazie", "anni", "bar", "Parigi", "punto", "ciao", "Jack", "Frank", "lockdown", "down",
+        "Roberta", "Francia", "Giuseppe", "ciao ciao", "Gianluca", "Luchino", "Ruggero", "Simone", "fotografo", "Luca",
+        "Dani", "Daniele", "Chiara", "Marco", "Leo", "Micol", "Rugge", "Ali", "Pat", "Beppe", "Ste", "Claudio",
+        "ragazzi", "ragazze", "raga", "l'altro", "l'altra", "volta", "l'ho", "l'hai", "l'ha", "volte", "l'hanno",
+        "dell'altro", "dell'altra", "c'era", "c'erano", "l'ultima", "l'ultimo", "cos'è", "cos'era", "l'abbiamo",
+        "cos'erano", "roba", "ni", "realtà", "c'eravate", "c'eravamo", "tanto", "s'è", "glielo", "dall'altro",
+        "dall'altra", "cos'altro", "l'è", "cosa", "cose", "tant'è", "meglio", "casi", "po'", "n'era", "gran", "Digli",
+        "puntata", "tema", "proposito", "caso", "tipo", "tipa", "tipi", "esempi", "esempio", "Luino", "Ruggiero",
+        "anno", "modo", "modi", "Stefano", "Vicente", "Chat", "chat", "com", "esatto", "Esatto", "un'app", "dov'è",
+        "dov'era", "dov'erano", "anch'io", "parte", "domanda", "Federica", "Stefania", "frattempo", "c'ho", "c'hai",
+        "c'hanno", "pezzo", "un'altra", "un'altro", "pezzi", "parti", "Marta", "d'accordo", "saluto", "saluti", "sacco",
+        "sacchi","Luigi", "senso", "motivo","Flora", "notaio", "ore", "ora", "momento", "attimo", "cazzo", "merda", "Stefy",
+        "Luca", "Dani", "Daniele", "Chiara", "Marco", "Leo", "Micol", "Rugge", "Ali", "Pat", "Beppe", "Ste", "Claudio",
+        "ragazzi", "ragazze", "raga", "l'altro", "l'altra", "volta", "l'ho", "l'hai", "l'ha", "volte", "l'hanno",
+        "dell'altro", "dell'altra", "c'era", "c'erano", "l'ultima", "l'ultimo", "cos'è", "cos'era", "l'abbiamo",
+        "cos'erano", "roba", "ni", "realtà", "c'eravate", "c'eravamo", "tanto", "s'è", "glielo", "dall'altro",
+        "dall'altra", "cos'altro", "l'è", "cosa", "cose", "tant'è", "meglio", "casi", "po'", "n'era", "gran", "Digli",
+        "puntata", "tema", "proposito", "caso", "tipo", "tipa", "tipi", "esempi", "esempio", "Luino", "Ruggiero",
+        "anno", "modo", "modi", "Stefano", "Vicente", "Chat", "chat", "com", "esatto", "Esatto", "un'app", "dov'è",
+        "dov'era", "dov'erano", "anch'io", "l'unico", "l'unica", "Ale", "Francesco", "quest'anno", "un'altro",
+        "un'altra", "metà", "paio", "l'anno",
     ]
 
-    for audio in inputLst:
-        print(audio)
+    srcDir = r"P:\WORK\PYTHONPATH\rug\projects\autoradiolockdown\ruggero-dev\autolog\audio\puntate\mp3\segmentsMp3"
+    mp3Files = [x for x in os.listdir(os.path.join(srcDir,podcastName)) if x.startswith("noSong") and x.endswith("mp3")]
+    mp3FilePaths = [os.path.join(srcDir,podcastName,x) for x in mp3Files]
 
-        sc = SpeechCloud(language='it')
-        # sc = SpeechCloud(language='it', minutes=[1, 3])
-
-        fig = sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400)
-        # sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400, color_func=lambda *args, **kwargs: "white", background_color="red")
-        # sc.plot(audio=None, stopwords=STOPWORDS, max_words=400, color_func=lambda *args, **kwargs: "white", background_color="black")
-        # sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400, color_func=lambda *args, **kwargs: "white", background_color="green")
-        # sc.plot(audio=audio, stopwords=STOPWORDS, max_words=400, colormap="inferno")
-
-        # text = sc.getTranscription()
-        # print(text)
-
-        # plt.close("all")
-
-        fig.canvas.start_event_loop(sys.float_info.min)
-        plt.savefig(os.path.join(tgtDir, fileName + ".png"), bbox_inches="tight")
-        plt.close(fig)
-
-        print(sc.text)
-
+    sc = SpeechCloud(language='it')
+    fig = sc.plot(audio=mp3FilePaths, stopwords=STOPWORDS)
+    text = sc.getTranscription()
+    # print(text)
     print("FINISHED")
 
-    # --------------------------------------------------------------------------------------------------------------
+
+
